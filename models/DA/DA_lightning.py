@@ -62,10 +62,10 @@ class DataAssimilatorModule(pl.LightningModule):
                                      learn_h=learn_h,
                                      learn_K=learn_K)
 
-    def long_solve(self):
+    def long_solve(self, device='cpu'):
         '''This function solves the ODE for a long time, and returns the entire trajectory'''
         # solve the ODE using the initial conditions x0 and time points t
-        x = self.model.solve(self.x0_inv, self.t_inv)
+        x = self.model.solve(self.x0_inv.to(device), self.t_inv.to(device))
         return x
 
     def forward(self, y_obs, times):
@@ -142,7 +142,7 @@ class DataAssimilatorModule(pl.LightningModule):
 
         if batch_idx == 0:
             # run the model on the long trajectory
-            x_long = self.long_solve()
+            x_long = self.long_solve(device=y_obs.device)
             y_long = self.model.h_obs(x_long).detach().cpu().numpy()
             
             self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, tag='Val')
@@ -243,7 +243,7 @@ class DataAssimilatorModule(pl.LightningModule):
                 if y_long is not None:
                     ax = axs[i, 2]
                     # use seaborn kdeplot
-                    sns.kdeplot(y_long[:, i], ax=ax, shade=True, color='blue')
+                    sns.kdeplot(y_long[:, i], ax=ax, fill=True, color='blue')
                     ax.set_xlabel(f'Observation {i}')
                     ax.set_ylabel('Density')
                     ax.set_title(f'Invariant Distribution for Observation {i}')
