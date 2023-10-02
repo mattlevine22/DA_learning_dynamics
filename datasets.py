@@ -8,6 +8,19 @@ from utils import InactiveNormalizer, UnitGaussianNormalizer, MaxMinNormalizer
 
 from pdb import set_trace as bp
 
+def load_normalizer_class(normalizer_name):
+    normalizer_classes = {
+        'inactive': InactiveNormalizer,
+        'unit_gaussian': UnitGaussianNormalizer,
+        'max_min': MaxMinNormalizer,
+        # Add more normalizer classes here
+    }
+
+    if normalizer_name in normalizer_classes:
+        return normalizer_classes[normalizer_name]
+    else:
+        raise ValueError(f"Normalizer class '{normalizer_name}' not found.")
+
 def load_dyn_sys_class(dataset_name):
     dataset_classes = {
         'Lorenz63': Lorenz63,
@@ -102,6 +115,7 @@ class DynamicsDataset(Dataset):
                  batch_length=1000,
                  params={},
                  dyn_sys_name='Lorenz63',
+                 normalizer='unit_gaussian',
                  **kwargs):
         '''use params to pass in parameters for the dynamical system'''
         self.N_traj = N_traj
@@ -110,7 +124,7 @@ class DynamicsDataset(Dataset):
         self.batch_length = batch_length 
         # batch idx will return a subset of a trajectory of length batch_length
         self.dynsys = load_dyn_sys_class(dyn_sys_name)(**params)
-
+        self.Normalizer = load_normalizer_class(normalizer)
         self.generate_data()
 
         # number of sequences of length batch_length in each trajectory
@@ -134,7 +148,7 @@ class DynamicsDataset(Dataset):
         self.y_obs = self.dynsys.noisy_obs(self.x_true)
 
         #normalize data
-        self.y_obs_normalizer = UnitGaussianNormalizer(
+        self.y_obs_normalizer = self.Normalizer(
             self.y_obs.reshape(-1, self.y_obs.shape[-1]).data.numpy())
 
         self.y_obs = self.y_obs_normalizer.encode(self.y_obs)

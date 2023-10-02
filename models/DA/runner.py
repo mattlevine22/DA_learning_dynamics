@@ -7,7 +7,7 @@ import wandb
 from pytorch_lightning.tuner import Tuner
 
 # Import custom modules
-from datasets import DynamicsDataModule
+from datasets import DynamicsDataModule, load_dyn_sys_class
 from models.DA.DA_lightning import DataAssimilatorModule
 
 class Runner:
@@ -28,12 +28,15 @@ class Runner:
             limit_test_batches=1.0,
             batch_size=64,
             tune_batch_size=False,
+            normalizer='inactive',
             dyn_sys_name='Lorenz63',
             monitor_metric='loss/val/mse',
             lr_scheduler_params={'patience': 2, 'factor': 0.1},
             tune_initial_lr=False,
             dim_state=3,
             dim_obs=1,
+            use_physics=False,
+            use_nn=True,
             learn_h=False,
             learn_K=False,
             layer_width=50,
@@ -44,7 +47,7 @@ class Runner:
             activations='gelu',
             max_epochs=1,
             shuffle='once',
-            log_every_n_steps=10,
+            log_every_n_steps=1,
             gradient_clip_val=10.0,
             gradient_clip_algorithm="value",
             overfit_batches=0.0):
@@ -67,6 +70,7 @@ class Runner:
                                  'tune_batch_size': tune_batch_size,
                                  'dyn_sys_name': dyn_sys_name,
                                  'shuffle': shuffle,
+                                 'normalizer': normalizer,
                                  }
 
         self.model_hyperparams = {
@@ -74,6 +78,8 @@ class Runner:
                                   'lr_scheduler_params': lr_scheduler_params,
                                   'dim_state': dim_state,
                                   'dim_obs': dim_obs,
+                                  'use_physics': use_physics,
+                                  'use_nn': use_nn,
                                   'learn_h': learn_h,
                                   'learn_K': learn_K,
                                   'layer_width': layer_width,
@@ -116,6 +122,9 @@ class Runner:
 
         # Load the DataModule
         datamodule = DynamicsDataModule(**self.data_hyperparams)
+
+        # Load the true ODE
+        self.model_hyperparams['ode'] = load_dyn_sys_class(self.data_hyperparams['dyn_sys_name'])()
 
         # Initialize the model
         model = DataAssimilatorModule(**self.model_hyperparams)

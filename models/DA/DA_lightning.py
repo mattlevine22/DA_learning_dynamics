@@ -21,6 +21,9 @@ class DataAssimilatorModule(pl.LightningModule):
     def __init__(self, 
                  dim_obs=1,
                  dim_state=10,
+                 ode=None,
+                 use_physics=False,
+                 use_nn=True,
                  num_hidden_layers=1,
                  learn_h=False,
                  learn_K=False,
@@ -47,7 +50,7 @@ class DataAssimilatorModule(pl.LightningModule):
         self.lr_scheduler_params = lr_scheduler_params
 
         # initial condition for the long trajectory
-        self.x0_inv = torch.zeros(dim_state) + 0.1
+        self.x0_inv = torch.zeros(1, dim_state) + 0.1
 
         # time points for the long trajectory
         self.t_inv = torch.arange(0, T_long, dt_long)
@@ -55,6 +58,9 @@ class DataAssimilatorModule(pl.LightningModule):
         # initialize the model
         self.model = DataAssimilator(dim_state=dim_state, 
                                      dim_obs=dim_obs,
+                                     ode=ode,
+                                     use_physics=use_physics,
+                                     use_nn=use_nn,
                                      num_hidden_layers=num_hidden_layers,
                                      layer_width=layer_width,
                                      dropout=dropout,
@@ -66,6 +72,7 @@ class DataAssimilatorModule(pl.LightningModule):
         '''This function solves the ODE for a long time, and returns the entire trajectory'''
         # solve the ODE using the initial conditions x0 and time points t
         x = self.model.solve(self.x0_inv.to(device), self.t_inv.to(device))
+        # x is (N_times, N_batch, dim_state)
         return x
 
     def forward(self, y_obs, times):
@@ -243,7 +250,7 @@ class DataAssimilatorModule(pl.LightningModule):
                 if y_long is not None:
                     ax = axs[i, 2]
                     # use seaborn kdeplot
-                    sns.kdeplot(y_long[:, i], ax=ax, fill=True, color='blue')
+                    sns.kdeplot(y_long[..., i].squeeze(), ax=ax, fill=True, color='blue')
                     ax.set_xlabel(f'Observation {i}')
                     ax.set_ylabel('Density')
                     ax.set_title(f'Invariant Distribution for Observation {i}')

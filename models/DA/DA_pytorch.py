@@ -12,11 +12,14 @@ from pdb import set_trace as bp
 torch.autograd.set_detect_anomaly(True)
 
 class DataAssimilator(nn.Module):
-    def __init__(self, 
+    def __init__(self,
                 dim_state: int,
                 dim_obs: int,
                 learn_h: bool = False,
                 learn_K: bool = False,
+                ode: object = None,
+                use_physics: bool = False,
+                use_nn: bool = True,
                 num_hidden_layers: int = 1,
                 layer_width: int = 50,
                 activations: int = 'gelu',
@@ -26,7 +29,8 @@ class DataAssimilator(nn.Module):
         self.dim_state = dim_state
         self.dim_obs = dim_obs
 
-        self.rhs = HybridODE(dim_state, num_hidden_layers, layer_width, activations, dropout)
+        self.rhs = HybridODE(dim_state, ode, use_physics, use_nn,
+                             num_hidden_layers, layer_width, activations, dropout)
 
         # initialize the observation map to be an unbiased identity map
         self.h_obs = nn.Linear(dim_state, dim_obs, bias=True)
@@ -53,7 +57,7 @@ class DataAssimilator(nn.Module):
         # set an initial condition for the state and register it as a buffer
         # note that this is better than self.x0 = x0 because pytorch-lightning will manage the device
         # so you don't have to do .to(device) every time you use it
-        self.register_buffer('x0', torch.zeros(dim_state))
+        self.register_buffer('x0', torch.zeros(dim_state, requires_grad=True))
 
     def solve(self, x0, t):
         # solve the ODE using the initial conditions x0 and time points t
@@ -82,17 +86,18 @@ class DataAssimilator(nn.Module):
 
             # perform the filtering/assimilation step w/ constant gain K
             x_assim_n = x_pred_n + self.K( (y_obs[:, n] - y_pred_n) )
+
             x_assim[:, n] = x_assim_n.detach()
             y_assim[:, n] = self.h_obs(x_assim_n.detach()).detach()
 
             if n < y_obs.shape[1] - 1:
                 # predict the next state by solving the ODE from t_n to t_{n+1} 
-                x_pred_n1 = self.solve(x_assim_n, times[n:n+2])[-1]
-                x_pred[:, n+1] = x_pred_n1.detach()
+                x_pred_n = self.solve(x_assim_n, times[n:n+2])[-1]
+                x_pred[:, n+1] = x_pred_n.detach()
 
                 # compute the observation map
-                y_pred_n1 = self.h_obs(x_pred_n1)
-                y_pred[:, n+1] = y_pred_n1
+                y_pred_n = self.h_obs(x_pred_n)
+                y_pred[:, n+1] = y_pred_n
 
         return y_pred, y_assim, x_pred, x_assim
 
@@ -134,30 +139,41 @@ class FeedForwardNN(nn.Module):
         return self.net(x)
 
 class F_Physics(nn.Module):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, ode=None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-    
+
+        self.ode = ode
+
     def forward(self, x):
-        return 0
+        return self.ode.rhs(0, x)
 
 # Define a class for the learned ODE model
 # This has a forward method to represent a RHS of an ODE, where rhs = f_physics + f_nn
 class HybridODE(nn.Module):
-    def __init__(self, dim_state, 
+    def __init__(self, dim_state,
+                 ode: object = None,
+                 use_physics: bool = False,
+                 use_nn: bool = True,
                  num_hidden_layers=1, 
                  layer_width=50, activations='gelu', dropout=0.01):
         super(HybridODE, self).__init__()
+        self.use_physics = use_physics
+        self.use_nn = use_nn
 
-        self.f_physics = F_Physics() # currently just a placeholder (outputs 0)
+        self.f_physics = F_Physics(ode) # currently just a placeholder (outputs 0)
 
         self.f_nn = FeedForwardNN(dim_state, dim_state,
                                   num_hidden_layers, layer_width, activations, dropout)
 
     def forward(self, t, x, bound=100):
+        rhs = torch.zeros_like(x, requires_grad=True).to(x)
 
         # if x is outside of [-100,100], set rhs to 0 to achieve fixed point at a boundary instead of blow-up
         if torch.any(torch.abs(x) > bound):
-            rhs = torch.zeros_like(x)
+            return rhs
         else:
-            rhs = self.f_physics(x) + self.f_nn(x)
+            if self.use_physics:
+                rhs += self.f_physics(x)
+            if self.use_nn:
+                rhs += self.f_nn(x)
         return rhs
