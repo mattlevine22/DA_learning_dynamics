@@ -148,7 +148,7 @@ class Runner:
             # however, pytorch nextafter does not yet support mps, so you will need to use cpu
             # can monitor this issue here (was reported Sep 2023)...hopefully updating pytorch will eventually solve this problem:
             # https://github.com/pytorch/pytorch/issues/77764
-                        accelerator='cpu',
+                        # accelerator='cpu',
 
                         # fast dev run settings
                         # limit_train_batches=1,
@@ -158,6 +158,7 @@ class Runner:
                         # val_check_interval=1.0,
                         # check_val_every_n_epoch=1,
 
+                        devices=[1],
                         # other settings
                         **self.trainer_hyperparams)
 
