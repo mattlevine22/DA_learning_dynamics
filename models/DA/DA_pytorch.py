@@ -173,7 +173,7 @@ class HybridODE(nn.Module):
             return rhs
         else:
             if self.use_physics:
-                rhs += self.f_physics(x)
+                rhs = rhs + self.f_physics(x)
             if self.use_nn:
-                rhs += self.f_nn(x)
+                rhs = rhs + self.f_nn(x)
         return rhs
