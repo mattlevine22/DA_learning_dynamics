@@ -1,1 +1,1 @@
-nohup python -u run_3dvar_trueODE_learnK.py --devices 1  > output3dvar.log &
+nohup python -u run.py --devices 2  > output.log &

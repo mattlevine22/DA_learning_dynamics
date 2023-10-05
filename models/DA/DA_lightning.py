@@ -93,22 +93,25 @@ class DataAssimilatorModule(pl.LightningModule):
         y_pred, y_assim, x_pred, x_assim = self.model(y_obs=y_obs, times=times)
         return y_pred, y_assim, x_pred, x_assim
 
+    def loss(self, y_pred, y_obs):
+        # compute the loss
+        loss_l2 = F.mse_loss(y_pred[:, self.n_burnin:], y_obs[:, self.n_burnin:])
+        loss_sup = torch.max(torch.abs(y_pred[:, self.n_burnin:] - y_obs[:, self.n_burnin:]))
+        return loss_l2, loss_sup
+
     def training_step(self, batch, batch_idx):
         y_obs, x_true, y_true, times = batch
         y_pred, y_assim, x_pred, x_assim = self.forward(y_obs, times)
-        loss = F.mse_loss(y_pred[:, self.n_burnin:], y_obs[:, self.n_burnin:])
-        self.log("loss/train/mse", loss, on_step=False,
+        loss_l2, loss_sup = self.loss(y_pred, y_obs)
+        self.log("loss/train/mse", loss_l2, on_step=False,
                  on_epoch=True, prog_bar=True)
-        
-        # Sup norm loss
-        loss_sup  = torch.max(torch.abs(y_pred[:, self.n_burnin:] - y_obs[:, self.n_burnin:]))
         self.log("loss/train/sup", loss_sup, on_step=False,
                  on_epoch=True, prog_bar=True)
 
         if batch_idx == 0:
             self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, tag='Train')
 
-        return loss
+        return loss_l2
 
     def on_after_backward(self):
         self.log_gradient_norms(tag='afterBackward')
@@ -150,12 +153,12 @@ class DataAssimilatorModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         y_obs, x_true, y_true, times = batch
         y_pred, y_assim, x_pred, x_assim = self.forward(y_obs, times)
-        loss = F.mse_loss(y_pred[:, self.n_burnin:], y_obs[:, self.n_burnin:])
-        self.log("loss/val/mse", loss, on_step=False,
-                 on_epoch=True, prog_bar=True)
+        # compute the losses
+        loss_l2, loss_sup = self.loss(y_pred, y_obs)
 
-        # Sup norm loss
-        loss_sup  = torch.max(torch.abs(y_pred[:, self.n_burnin:] - y_obs[:, self.n_burnin:]))
+        # log the losses
+        self.log("loss/val/mse", loss_l2, on_step=False,
+                 on_epoch=True, prog_bar=True)
         self.log("loss/val/sup", loss_sup, on_step=False,
                  on_epoch=True, prog_bar=True)
 
@@ -165,7 +168,7 @@ class DataAssimilatorModule(pl.LightningModule):
             y_long = self.model.h_obs(x_long).detach().cpu().numpy()
             
             self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, tag='Val')
-        return loss
+        return loss_l2
 
     def make_batch_figs(self, y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=None, tag='', n_examples=2):
         '''This function makes plots for a single batch of data.'''
@@ -311,12 +314,13 @@ class DataAssimilatorModule(pl.LightningModule):
         y_obs, x_true, y_true, times = batch
 
         y_pred, y_assim, x_pred, x_assim = self.forward(y_obs, times)
-        loss = F.mse_loss(y_pred[:, self.n_burnin:], y_obs[:, self.n_burnin:])
-        self.log(f"loss/test/mse/dt{dt}", loss, on_step=False,
+
+        # compute the losses
+        loss_l2, loss_sup = self.loss(y_pred, y_obs)
+
+        # log the losses
+        self.log(f"loss/test/mse/dt{dt}", loss_l2, on_step=False,
                  on_epoch=True, prog_bar=True)
-        
-        # Sup norm loss
-        loss_sup  = torch.max(torch.abs(y_pred[:, self.n_burnin:] - y_obs[:, self.n_burnin:]))
         self.log(f"loss/test/sup/dt{dt}", loss_sup, on_step=False,
                  on_epoch=True, prog_bar=True)
 
@@ -327,7 +331,7 @@ class DataAssimilatorModule(pl.LightningModule):
             y_long = self.model.h_obs(x_long).detach().cpu().numpy()
             self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, tag=f'Test/dt{dt}')
 
-        return loss
+        return loss_l2
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
