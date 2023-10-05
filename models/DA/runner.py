@@ -64,6 +64,9 @@ class Runner:
 
         seed_everything(seed, workers=True)
 
+        if devices != 'auto':
+            devices = [devices] # use this to specify a single device
+
         self.project_name = project_name
 
         self.data_hyperparams = {'size': {'train': n_trajectories_train,
