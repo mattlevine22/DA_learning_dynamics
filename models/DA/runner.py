@@ -65,7 +65,7 @@ class Runner:
         seed_everything(seed, workers=True)
 
         if devices != 'auto':
-            devices = [devices] # use this to specify a single device
+            devices = [int(devices)] # use this to specify a single device
 
         self.project_name = project_name
 
