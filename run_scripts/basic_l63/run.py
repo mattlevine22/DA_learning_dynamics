@@ -19,14 +19,15 @@ exp_dict = {
     'n_trajectories_train': [10], # smaller dataset for debugging
     'n_trajectories_val': [2],
     'n_trajectories_test': [2],
-    'T': [100],
+    'T': [10],
+    'T_long': [10], #[1000]
     'train_sample_rate': [0.01],
     'test_sample_rates': [[0.01]],
     'batch_size': [8],
     'batch_length': [1000],
     'n_burnin': [100],
     'dyn_sys_name': ['Lorenz63'],
-    'shuffle': ['once'],
+    'shuffle': ['once'], # options are 'once', 'every_epoch', None
     # optimizer settings
     'limit_train_batches': [0.002],
     'limit_val_batches': [0.005],
@@ -41,6 +42,8 @@ exp_dict = {
     # model settings
     'dim_obs': [1],
     'dim_state': [5],
+    'use_physics': [True],
+    'use_nn': [False],
     'learn_h': [False],
     'learn_K': [True],
     'num_hidden_layers': [1],

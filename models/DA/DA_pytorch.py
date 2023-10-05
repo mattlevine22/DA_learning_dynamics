@@ -17,7 +17,9 @@ class DataAssimilator(nn.Module):
                 dim_obs: int,
                 learn_h: bool = False,
                 learn_K: bool = False,
+                init_K: str = 'hT', # options are 'random', 'hT'
                 ode: object = None,
+                odeint_params: dict = {'method': 'dopri5', 'rtol': 1e-7, 'atol': 1e-9, 'options': {'dtype': torch.float32}},
                 use_physics: bool = False,
                 use_nn: bool = True,
                 num_hidden_layers: int = 1,
@@ -28,6 +30,7 @@ class DataAssimilator(nn.Module):
 
         self.dim_state = dim_state
         self.dim_obs = dim_obs
+        self.odeint_params = odeint_params
 
         self.rhs = HybridODE(dim_state, ode, use_physics, use_nn,
                              num_hidden_layers, layer_width, activations, dropout)
@@ -40,7 +43,10 @@ class DataAssimilator(nn.Module):
 
         # initialize trainable constant gain K to be transpose of h_obs (K = h_obs^T)
         self.K = nn.Linear(dim_obs, dim_state, bias=False)
-        self.K.weight.data = self.h_obs.weight.data.T.clone() # clone to avoid linking these tensors
+        self.K.weight.data = 0.1 * self.K.weight.data
+        if init_K == 'hT':
+            self.K.weight.data = self.h_obs.weight.data.T.clone() # clone to avoid linking these tensors
+        print('K initialized to: ', self.K.weight.data)
 
         # freeze necessary parameters if not learning them
         if not learn_h:
@@ -61,7 +67,7 @@ class DataAssimilator(nn.Module):
 
     def solve(self, x0, t):
         # solve the ODE using the initial conditions x0 and time points t
-        x = odeint(self.rhs, x0, t, options={'dtype': torch.float32})
+        x = odeint(self.rhs, x0, t, **self.odeint_params)
         return x
 
     def forward(self, y_obs, times):
@@ -73,31 +79,31 @@ class DataAssimilator(nn.Module):
         x_assim = torch.zeros((y_obs.shape[0], y_obs.shape[1], self.dim_state)).to(y_obs).detach()
         x_pred = torch.zeros((y_obs.shape[0], y_obs.shape[1], self.dim_state)).to(y_obs).detach()
         y_pred = torch.zeros_like(y_obs).to(y_obs)
-        y_assim = torch.zeros_like(y_obs).to(y_obs)
+        y_assim = torch.zeros_like(y_obs).to(y_obs).detach()
 
-        x_pred_n = self.x0
-        y_pred_n = self.h_obs(self.x0)
+        x_pred_n = torch.zeros((y_obs.shape[0], self.dim_state)).to(y_obs)
+        x_pred_n[:] = self.x0
+        y_pred_n = self.h_obs(x_pred_n)
 
-        x_pred[:, 0] = x_pred_n.detach()
+        x_pred[:, 0] = x_pred_n.detach().clone()
         y_pred[:, 0] = y_pred_n
 
         # loop over times
         for n in range(len(times)):
-
             # perform the filtering/assimilation step w/ constant gain K
             x_assim_n = x_pred_n + self.K( (y_obs[:, n] - y_pred_n) )
 
-            x_assim[:, n] = x_assim_n.detach()
-            y_assim[:, n] = self.h_obs(x_assim_n.detach()).detach()
+            x_assim[:, n] = x_assim_n.detach().clone()
+            y_assim[:, n] = self.h_obs(x_assim_n.detach()).detach().clone()
 
             if n < y_obs.shape[1] - 1:
                 # predict the next state by solving the ODE from t_n to t_{n+1} 
                 x_pred_n = self.solve(x_assim_n, times[n:n+2])[-1]
-                x_pred[:, n+1] = x_pred_n.detach()
+                x_pred[:, n+1] = x_pred_n.detach().clone()
 
                 # compute the observation map
-                y_pred_n = self.h_obs(x_pred_n)
-                y_pred[:, n+1] = y_pred_n
+                y_pred_n = self.h_obs(x_pred_n.clone())
+                y_pred[:, n+1] = y_pred_n.clone()
 
         return y_pred, y_assim, x_pred, x_assim
 
@@ -160,10 +166,12 @@ class HybridODE(nn.Module):
         self.use_physics = use_physics
         self.use_nn = use_nn
 
-        self.f_physics = F_Physics(ode) # currently just a placeholder (outputs 0)
+        if self.use_physics:
+            self.f_physics = F_Physics(ode) # currently just a placeholder (outputs 0)
 
-        self.f_nn = FeedForwardNN(dim_state, dim_state,
-                                  num_hidden_layers, layer_width, activations, dropout)
+        if self.use_nn:
+            self.f_nn = FeedForwardNN(dim_state, dim_state,
+                                    num_hidden_layers, layer_width, activations, dropout)
 
     def forward(self, t, x, bound=100):
         rhs = torch.zeros_like(x, requires_grad=True).to(x)

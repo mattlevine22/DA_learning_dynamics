@@ -14,12 +14,15 @@ class Runner:
     def __init__(self,
             seed=0,
             fast_dev_run=False,
+            accelerator='auto',
+            devices='auto',
             deterministic=True, # set to False to get different results each time
             project_name="l63",
             n_trajectories_train=10,
             n_trajectories_val=2,
             n_trajectories_test=2,
             T=100,
+            T_long=1000,
             batch_length=1000,
             train_sample_rate=0.01,
             test_sample_rates=[0.01],
@@ -30,6 +33,8 @@ class Runner:
             tune_batch_size=False,
             normalizer='inactive',
             dyn_sys_name='Lorenz63',
+            obs_noise_std=1,
+            ode_params={},
             monitor_metric='loss/val/mse',
             lr_scheduler_params={'patience': 2, 'factor': 0.1},
             tune_initial_lr=False,
@@ -39,6 +44,11 @@ class Runner:
             use_nn=True,
             learn_h=False,
             learn_K=False,
+            init_K='hT',
+            odeint_method='dopri5',
+            odeint_rtol=1e-7,
+            odeint_atol=1e-9,
+            odeint_options={'dtype': torch.float32},
             layer_width=50,
             num_hidden_layers=1,
             n_burnin=200,
@@ -71,6 +81,8 @@ class Runner:
                                  'dyn_sys_name': dyn_sys_name,
                                  'shuffle': shuffle,
                                  'normalizer': normalizer,
+                                 'obs_noise_std': obs_noise_std, # this is the standard deviation of the observation noise
+                                 'ode_params': ode_params,
                                  }
 
         self.model_hyperparams = {
@@ -82,12 +94,18 @@ class Runner:
                                   'use_nn': use_nn,
                                   'learn_h': learn_h,
                                   'learn_K': learn_K,
+                                  'init_K': init_K,
                                   'layer_width': layer_width,
                                   'num_hidden_layers': num_hidden_layers,
                                   'n_burnin': n_burnin,
                                   'learning_rate': learning_rate,
                                   'dropout': dropout,
                                   'activations': activations,
+                                  'odeint_method': odeint_method,
+                                  'odeint_rtol': odeint_rtol,
+                                  'odeint_atol': odeint_atol,
+                                  'odeint_options': odeint_options,
+                                  'T_long': T_long,
                                   }
         
         self.trainer_hyperparams = {'max_epochs': max_epochs,
@@ -100,9 +118,12 @@ class Runner:
                                     'limit_train_batches': limit_train_batches,
                                     'limit_val_batches': limit_val_batches,
                                     'limit_test_batches': limit_test_batches,
+                                    'accelerator': accelerator,
+                                    'devices': devices,
                                     }
         
         self.other_hyperparams = {'seed': seed, 'tune_initial_lr': tune_initial_lr,
+                                  'accelerator': accelerator,
                                   }
 
         self.run()
@@ -148,17 +169,6 @@ class Runner:
             # however, pytorch nextafter does not yet support mps, so you will need to use cpu
             # can monitor this issue here (was reported Sep 2023)...hopefully updating pytorch will eventually solve this problem:
             # https://github.com/pytorch/pytorch/issues/77764
-                        # accelerator='cpu',
-
-                        # fast dev run settings
-                        # limit_train_batches=1,
-                        # limit_val_batches=1,
-                        # limit_test_batches=1,
-                        # num_sanity_val_steps=0,
-                        # val_check_interval=1.0,
-                        # check_val_every_n_epoch=1,
-
-                        devices=[1],
                         # other settings
                         **self.trainer_hyperparams)
 

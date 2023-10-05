@@ -22,11 +22,16 @@ class DataAssimilatorModule(pl.LightningModule):
                  dim_obs=1,
                  dim_state=10,
                  ode=None,
+                 odeint_method='dopri5',
+                 odeint_rtol=1e-7,
+                 odeint_atol=1e-9,
+                 odeint_options={'dtype': torch.float32},
                  use_physics=False,
                  use_nn=True,
                  num_hidden_layers=1,
                  learn_h=False,
                  learn_K=False,
+                 init_K='hT',
                  layer_width=50,
                  n_burnin=200,
                  learning_rate=0.01, 
@@ -53,12 +58,18 @@ class DataAssimilatorModule(pl.LightningModule):
         self.x0_inv = torch.zeros(1, dim_state) + 0.1
 
         # time points for the long trajectory
-        self.t_inv = torch.arange(0, T_long, dt_long)
+        self.t_inv = {'train': None,
+                      'val': torch.arange(0, T_long, dt_long),
+                      'test': torch.arange(0, 10*T_long, dt_long),
+                    }
+
+        odeint_params = {'method': odeint_method, 'rtol': odeint_rtol, 'atol': odeint_atol, 'options': odeint_options}
 
         # initialize the model
         self.model = DataAssimilator(dim_state=dim_state, 
                                      dim_obs=dim_obs,
                                      ode=ode,
+                                     odeint_params=odeint_params,
                                      use_physics=use_physics,
                                      use_nn=use_nn,
                                      num_hidden_layers=num_hidden_layers,
@@ -66,12 +77,13 @@ class DataAssimilatorModule(pl.LightningModule):
                                      dropout=dropout,
                                      activations=activation,
                                      learn_h=learn_h,
-                                     learn_K=learn_K)
+                                     learn_K=learn_K,
+                                     init_K=init_K)
 
-    def long_solve(self, device='cpu'):
+    def long_solve(self, device='cpu', stage='val'):
         '''This function solves the ODE for a long time, and returns the entire trajectory'''
         # solve the ODE using the initial conditions x0 and time points t
-        x = self.model.solve(self.x0_inv.to(device), self.t_inv.to(device))
+        x = self.model.solve(self.x0_inv.to(device), self.t_inv[stage].to(device))
         # x is (N_times, N_batch, dim_state)
         return x
 
@@ -149,7 +161,7 @@ class DataAssimilatorModule(pl.LightningModule):
 
         if batch_idx == 0:
             # run the model on the long trajectory
-            x_long = self.long_solve(device=y_obs.device)
+            x_long = self.long_solve(device=y_obs.device, stage='val')
             y_long = self.model.h_obs(x_long).detach().cpu().numpy()
             
             self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, tag='Val')
@@ -310,7 +322,10 @@ class DataAssimilatorModule(pl.LightningModule):
 
         # log plots
         if batch_idx == 0:
-            self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, tag=f'Test/dt{dt}')
+            # run the model on the long trajectory
+            x_long = self.long_solve(device=y_obs.device, stage='test')
+            y_long = self.model.h_obs(x_long).detach().cpu().numpy()
+            self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, tag=f'Test/dt{dt}')
 
         return loss
 

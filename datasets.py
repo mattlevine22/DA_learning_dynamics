@@ -66,8 +66,8 @@ class DynSys(object):
         return y_noisy
     
 class Lorenz63(DynSys):
-    def __init__(self, state_dim=3, sigma=10, rho=28, beta=8/3):
-        super().__init__(state_dim=state_dim)
+    def __init__(self, state_dim=3, sigma=10, rho=28, beta=8/3, obs_noise_std=1):
+        super().__init__(state_dim=state_dim, obs_noise_std=obs_noise_std)
         self.sigma = sigma
         self.rho = rho
         self.beta = beta
@@ -87,8 +87,8 @@ class Lorenz63(DynSys):
         return xyz0
 
 class Rossler(DynSys):
-    def __init__(self, state_dim=2, a=0.2, b=0.2, c=5.7):
-        super().__init__(state_dim=state_dim)
+    def __init__(self, state_dim=2, a=0.2, b=0.2, c=5.7, obs_noise_std=1):
+        super().__init__(state_dim=state_dim, obs_noise_std=obs_noise_std)
         self.a = a
         self.b = b
         self.c = c
@@ -113,17 +113,18 @@ class DynamicsDataset(Dataset):
                  T=1, 
                  sample_rate=0.01, 
                  batch_length=1000,
-                 params={},
+                 obs_noise_std=1,
+                 ode_params={},
                  dyn_sys_name='Lorenz63',
                  normalizer='unit_gaussian',
                  **kwargs):
-        '''use params to pass in parameters for the dynamical system'''
+        '''use ode_params to pass in parameters for the dynamical system'''
         self.N_traj = N_traj
         self.T = T
         self.sample_rate = sample_rate
         self.batch_length = batch_length 
         # batch idx will return a subset of a trajectory of length batch_length
-        self.dynsys = load_dyn_sys_class(dyn_sys_name)(**params)
+        self.dynsys = load_dyn_sys_class(dyn_sys_name)(obs_noise_std=obs_noise_std, **ode_params)
         self.Normalizer = load_normalizer_class(normalizer)
         self.generate_data()
 
@@ -153,7 +154,6 @@ class DynamicsDataset(Dataset):
 
         self.y_obs = self.y_obs_normalizer.encode(self.y_obs)
         self.y_true = self.y_obs_normalizer.encode(self.y_true)
-
 
     def __len__(self):
         # the number of batches is equal to the number of trajectories * the number of subsets (of length batch_length) of each trajectory
@@ -196,8 +196,10 @@ class DynamicsDataModule(pl.LightningDataModule):
             T={'train': 100, 'val': 100, 'test': 100},
             train_sample_rate=0.01,
             test_sample_rates=[0.01],
-            params={},
+            obs_noise_std=1,
+            ode_params={},
             dyn_sys_name='Lorenz63',
+            normalizer='unit_gaussian',
             **kwargs
             ):
         super().__init__()
@@ -207,25 +209,31 @@ class DynamicsDataModule(pl.LightningDataModule):
         self.T = T
         self.train_sample_rate = train_sample_rate
         self.test_sample_rates = test_sample_rates
-        self.params = params
+        self.ode_params = ode_params
+        self.obs_noise_std = obs_noise_std
         self.dyn_sys_name = dyn_sys_name
         self.shuffle = shuffle
+        self.normalizer = normalizer
 
     def setup(self, stage: str):
         # Assign train/val datasets for use in dataloaders
         self.train = DynamicsDataset(N_traj=self.N_traj['train'],
                                         T=self.T['train'],
                                         sample_rate=self.train_sample_rate,
-                                        params=self.params,
+                                        ode_params=self.ode_params,
+                                        obs_noise_std=self.obs_noise_std,
                                         batch_length=self.batch_length,
-                                        dyn_sys_name=self.dyn_sys_name)
+                                        dyn_sys_name=self.dyn_sys_name,
+                                        normalizer=self.normalizer)
 
         self.val = DynamicsDataset(N_traj=self.N_traj['val'],
                                         T=self.T['val'],
                                         sample_rate=self.train_sample_rate,
-                                        params=self.params,
+                                        ode_params=self.ode_params,
+                                        obs_noise_std=self.obs_noise_std,
                                         batch_length=self.batch_length,
-                                        dyn_sys_name=self.dyn_sys_name)
+                                        dyn_sys_name=self.dyn_sys_name,
+                                        normalizer=self.normalizer)
 
         # build a dictionary of test datasets with different sample rates
         self.test = {}
@@ -233,9 +241,11 @@ class DynamicsDataModule(pl.LightningDataModule):
             self.test[dt] = DynamicsDataset(N_traj=self.N_traj['test'],
                                         T=self.T['test'],
                                         sample_rate=dt,
-                                        params=self.params,
+                                        ode_params=self.ode_params,
+                                        obs_noise_std=self.obs_noise_std,
                                         batch_length=self.batch_length,
-                                        dyn_sys_name=self.dyn_sys_name)
+                                        dyn_sys_name=self.dyn_sys_name,
+                                        normalizer=self.normalizer)
 
     def get_dataloader(self, data):
         if self.shuffle == 'once':
