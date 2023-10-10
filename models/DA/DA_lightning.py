@@ -88,7 +88,8 @@ class DataAssimilatorModule(pl.LightningModule):
     def long_solve(self, device='cpu', stage='val'):
         '''This function solves the ODE for a long time, and returns the entire trajectory'''
         # solve the ODE using the initial conditions x0 and time points t
-        x = self.model.solve(self.x0_inv.to(device), self.t_inv[stage].to(device))
+        # solve using default odesolver parameters (atol=1e-7, rtol=1e-9, dopri5)
+        x = self.model.solve(self.x0_inv.to(device), self.t_inv[stage].to(device), params={})
         # x is (N_times, N_batch, dim_state)
         return x
 

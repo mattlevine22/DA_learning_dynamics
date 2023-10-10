@@ -62,9 +62,9 @@ class DataAssimilator(nn.Module):
         # so you don't have to do .to(device) every time you use it
         self.register_buffer('x0', torch.zeros(dim_state, requires_grad=True))
 
-    def solve(self, x0, t):
+    def solve(self, x0, t, params={}):
         # solve the ODE using the initial conditions x0 and time points t
-        x = odeint_wrapper(self.rhs, x0, t, **self.odeint_params)
+        x = odeint_wrapper(self.rhs, x0, t, **params)
         return x
 
     def forward(self, y_obs, times):
@@ -95,7 +95,7 @@ class DataAssimilator(nn.Module):
 
             if n < y_obs.shape[1] - 1:
                 # predict the next state by solving the ODE from t_n to t_{n+1} 
-                x_pred_n = self.solve(x_assim_n, times[n:n+2])[-1]
+                x_pred_n = self.solve(x_assim_n, times[n:n+2], params=self.odeint_params)[-1]
                 x_pred[:, n+1] = x_pred_n.detach().clone()
 
                 # compute the observation map
