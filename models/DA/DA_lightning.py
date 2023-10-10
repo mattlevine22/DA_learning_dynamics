@@ -22,6 +22,7 @@ class DataAssimilatorModule(pl.LightningModule):
                  dim_obs=1,
                  dim_state=10,
                  ode=None,
+                 odeint_use_adjoint=False,
                  odeint_method='dopri5',
                  odeint_rtol=1e-7,
                  odeint_atol=1e-9,
@@ -63,7 +64,11 @@ class DataAssimilatorModule(pl.LightningModule):
                       'test': torch.arange(0, 10*T_long, dt_long),
                     }
 
-        odeint_params = {'method': odeint_method, 'rtol': odeint_rtol, 'atol': odeint_atol, 'options': odeint_options}
+        odeint_params = {'use_adjoint': odeint_use_adjoint,
+                         'method': odeint_method,
+                         'rtol': odeint_rtol,
+                         'atol': odeint_atol,
+                         'options': odeint_options}
 
         # initialize the model
         self.model = DataAssimilator(dim_state=dim_state, 

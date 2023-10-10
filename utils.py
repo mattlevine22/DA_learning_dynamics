@@ -1,6 +1,15 @@
 import numpy as np
 import itertools
 import torch.nn as nn
+from torchdiffeq import odeint, odeint_adjoint
+
+def odeint_wrapper(func, y0, t, use_adjoint=False, rtol=1e-7, atol=1e-9, method=None, options=None, event_fn=None):
+    '''Wrapper for odeint and odeint_adjoint to allow for easy switching between the two.
+        Uses default values for rtol, atol, method, and options if not specified.'''
+    if use_adjoint:
+        return odeint_adjoint(func, y0, t, rtol=rtol, atol=atol, method=method, options=options, event_fn=event_fn)
+    else:
+        return odeint(func, y0, t, rtol=rtol, atol=atol, method=method, options=options, event_fn=event_fn)
 
 def get_activation(activation_name):
     if activation_name == 'relu':

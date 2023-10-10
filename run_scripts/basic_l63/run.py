@@ -59,6 +59,7 @@ exp_dict = {
     'layer_width': [50],
     'activations': ['gelu'],
     # ODE settings
+    'odeint_use_adjoint': [False],
     'odeint_method': ['dopri5'],
     'odeint_rtol': [1e-5],
     'odeint_atol': [1e-5],

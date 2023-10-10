@@ -2,10 +2,7 @@ import os
 import torch
 import torch.nn as nn
 
-from torchdiffeq import odeint
-from torchdiffeq import odeint_adjoint as odeint_adj
-
-from utils import get_activation
+from utils import get_activation, odeint_wrapper
 
 from pdb import set_trace as bp
 
@@ -19,7 +16,7 @@ class DataAssimilator(nn.Module):
                 learn_K: bool = False,
                 init_K: str = 'hT', # options are 'random', 'hT'
                 ode: object = None,
-                odeint_params: dict = {'method': 'dopri5', 'rtol': 1e-7, 'atol': 1e-9, 'options': {'dtype': torch.float32}},
+                odeint_params: dict = {'use_adjoint': False, 'method': 'dopri5', 'rtol': 1e-7, 'atol': 1e-9, 'options': {'dtype': torch.float32}},
                 use_physics: bool = False,
                 use_nn: bool = True,
                 num_hidden_layers: int = 1,
@@ -67,7 +64,7 @@ class DataAssimilator(nn.Module):
 
     def solve(self, x0, t):
         # solve the ODE using the initial conditions x0 and time points t
-        x = odeint(self.rhs, x0, t, **self.odeint_params)
+        x = odeint_wrapper(self.rhs, x0, t, **self.odeint_params)
         return x
 
     def forward(self, y_obs, times):
