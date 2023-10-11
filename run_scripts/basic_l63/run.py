@@ -9,10 +9,11 @@ import argparse
 # use argparse to get command line argument for which experiment to run
 parser = argparse.ArgumentParser()
 parser.add_argument('--project_name', type=str, default='mlda_l63_partialNoisyObs')
-parser.add_argument('--id', type=int, default=0)
 parser.add_argument('--fast_dev_run', type=bool, default=False)
 parser.add_argument('--accelerator', type=str, default='auto')
 parser.add_argument('--devices', type=str, default='auto')
+parser.add_argument('--run_all', type=bool, default=True)
+parser.add_argument('--run_id', type=int, default=0)
 args = parser.parse_args()
 
 # build a dict of experimental conditions
@@ -72,7 +73,14 @@ exp_list = dict_combiner(exp_dict)
 print('Number of experiments to sweep: ', len(exp_list))
 
 # run the experiment
-Runner(**exp_list[args.id])
+if args.run_all:
+    id_list = list(range(len(exp_list)))
+else:
+    id_list = [args.run_id]
+
+for i in id_list:
+    print('Running experiment ', i)
+    Runner(**exp_list[i])
 
 
 
