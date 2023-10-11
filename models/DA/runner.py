@@ -23,7 +23,7 @@ class Runner:
             n_trajectories_test=2,
             T=100,
             T_long=1000,
-            batch_length=1000,
+            batch_length_T=10,
             train_sample_rate=0.01,
             test_sample_rates=[0.01],
             limit_train_batches=1.0,
@@ -80,7 +80,7 @@ class Runner:
                                  'train_sample_rate': train_sample_rate,
                                  'test_sample_rates': test_sample_rates,
                                  'batch_size': batch_size,
-                                 'batch_length': batch_length, # this is the number of time steps in each batch
+                                 'batch_length_T': batch_length_T, # this is the number of time steps in each batch
                                  'tune_batch_size': tune_batch_size,
                                  'dyn_sys_name': dyn_sys_name,
                                  'shuffle': shuffle,
