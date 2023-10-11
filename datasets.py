@@ -112,7 +112,7 @@ class DynamicsDataset(Dataset):
                  N_traj=1000, 
                  T=1, 
                  sample_rate=0.01, 
-                 batch_length=1000,
+                 batch_length_T=10, # batch length in units of T
                  obs_noise_std=1,
                  ode_params={},
                  dyn_sys_name='Lorenz63',
@@ -122,7 +122,7 @@ class DynamicsDataset(Dataset):
         self.N_traj = N_traj
         self.T = T
         self.sample_rate = sample_rate
-        self.batch_length = batch_length 
+        self.batch_length = int(batch_length_T / sample_rate)
         # batch idx will return a subset of a trajectory of length batch_length
         self.dynsys = load_dyn_sys_class(dyn_sys_name)(obs_noise_std=obs_noise_std, **ode_params)
         self.Normalizer = load_normalizer_class(normalizer)
@@ -191,7 +191,7 @@ class DynamicsDataModule(pl.LightningDataModule):
     def __init__(self,
             shuffle='once', # can be 'once', 'every_epoch', or 'never'
             batch_size=64,
-            batch_length=1000,
+            batch_length_T=10,
             N_traj={'train': 10, 'val': 2, 'test': 2},
             T={'train': 100, 'val': 100, 'test': 100},
             train_sample_rate=0.01,
@@ -204,7 +204,7 @@ class DynamicsDataModule(pl.LightningDataModule):
             ):
         super().__init__()
         self.batch_size = batch_size
-        self.batch_length = batch_length
+        self.batch_length_T = batch_length_T
         self.N_traj = N_traj
         self.T = T
         self.train_sample_rate = train_sample_rate
@@ -222,7 +222,7 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         sample_rate=self.train_sample_rate,
                                         ode_params=self.ode_params,
                                         obs_noise_std=self.obs_noise_std,
-                                        batch_length=self.batch_length,
+                                        batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
                                         normalizer=self.normalizer)
 
@@ -231,7 +231,7 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         sample_rate=self.train_sample_rate,
                                         ode_params=self.ode_params,
                                         obs_noise_std=self.obs_noise_std,
-                                        batch_length=self.batch_length,
+                                        batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
                                         normalizer=self.normalizer)
 
@@ -243,7 +243,7 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         sample_rate=dt,
                                         ode_params=self.ode_params,
                                         obs_noise_std=self.obs_noise_std,
-                                        batch_length=self.batch_length,
+                                        batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
                                         normalizer=self.normalizer)
 

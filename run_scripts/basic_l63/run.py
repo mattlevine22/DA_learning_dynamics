@@ -31,8 +31,8 @@ exp_dict = {
     'train_sample_rate': [0.01],
     'test_sample_rates': [[0.01]],
     'batch_size': [2**12],
-    'batch_length': [200],
-    'n_burnin': [150],
+    'batch_length_T': [2], # length of a batch in model time units (e.g., for sample rate 1e-2, this is 200 samples)
+    'n_burnin': [100],
     'dyn_sys_name': ['Lorenz63'],
     'shuffle': ['once'], # options are 'once', 'every_epoch', None
     'normalizer': ['unit_gaussian'], # options are 'inactive', 'unit_gaussian', 'min_max'
