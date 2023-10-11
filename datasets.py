@@ -25,6 +25,7 @@ def load_dyn_sys_class(dataset_name):
     dataset_classes = {
         'Lorenz63': Lorenz63,
         'Rossler': Rossler,
+        'G12': G12,
         # Add more dataset classes here for other systems
     }
 
@@ -34,9 +35,10 @@ def load_dyn_sys_class(dataset_name):
         raise ValueError(f"Dataset class '{dataset_name}' not found.")
 
 class DynSys(object):
-    def __init__(self, state_dim=1, obs_noise_std=1):
+    def __init__(self, state_dim=1, obs_noise_std=1, obs_inds=[0]):
         self.state_dim = state_dim
         self.obs_noise_std = obs_noise_std
+        self.obs_inds = obs_inds
     
     def rhs(self, t, x):
         raise NotImplementedError
@@ -57,7 +59,7 @@ class DynSys(object):
 
     def h_obs(self, x):
         '''observation function: default is to observe the first component of the state'''
-        return x[..., 0:1]
+        return x[..., self.obs_inds]
     
     def noisy_obs(self, x):
         '''default is to apply additive i.i.d. zero-mean Gaussian noise to observations'''
@@ -66,8 +68,8 @@ class DynSys(object):
         return y_noisy
     
 class Lorenz63(DynSys):
-    def __init__(self, state_dim=3, sigma=10, rho=28, beta=8/3, obs_noise_std=1):
-        super().__init__(state_dim=state_dim, obs_noise_std=obs_noise_std)
+    def __init__(self, state_dim=3, obs_inds=[0], sigma=10, rho=28, beta=8/3, obs_noise_std=1):
+        super().__init__(state_dim=state_dim, obs_noise_std=obs_noise_std, obs_inds=obs_inds)
         self.sigma = sigma
         self.rho = rho
         self.beta = beta
@@ -86,9 +88,30 @@ class Lorenz63(DynSys):
         xyz0 = torch.cat([x0, y0, z0], dim=1)
         return xyz0
 
+class G12(DynSys):
+    def __init__(self, state_dim=3, obs_inds=[0], mu=0.119, nu=0.1, Gamma=0.9, obs_noise_std=1):
+        super().__init__(state_dim=state_dim, obs_noise_std=obs_noise_std, obs_inds=obs_inds)
+        self.mu = mu
+        self.nu = nu
+        self.Gamma = Gamma
+
+    def rhs(self, t, x):
+        D, Q, V = x[:, 0:1], x[:, 1:2], x[:, 2:3]
+        dD = -self.nu * D + V*Q # dipole
+        dQ = self.mu * Q - V*D # quadrupole
+        dV  = self.Gamma - V + Q*D # flow
+        return torch.cat([dD, dQ, dV], dim=1)
+
+    def get_inits(self, size):
+        D0 = torch.empty(size, 1).uniform_(-2, 2)
+        Q0 = torch.empty(size, 1).uniform_(-2, 2)
+        V0 = torch.empty(size, 1).uniform_(-2, 2)
+        xyz0 = torch.cat([D0, Q0, V0], dim=1)
+        return xyz0
+
 class Rossler(DynSys):
-    def __init__(self, state_dim=2, a=0.2, b=0.2, c=5.7, obs_noise_std=1):
-        super().__init__(state_dim=state_dim, obs_noise_std=obs_noise_std)
+    def __init__(self, state_dim=3, obs_inds=[0], a=0.2, b=0.2, c=5.7, obs_noise_std=1):
+        super().__init__(state_dim=state_dim, obs_noise_std=obs_noise_std, obs_inds=obs_inds)
         self.a = a
         self.b = b
         self.c = c
@@ -113,6 +136,7 @@ class DynamicsDataset(Dataset):
                  T=1, 
                  sample_rate=0.01, 
                  batch_length_T=10, # batch length in units of T
+                 obs_inds=[0],
                  obs_noise_std=1,
                  ode_params={},
                  dyn_sys_name='Lorenz63',
@@ -124,7 +148,7 @@ class DynamicsDataset(Dataset):
         self.sample_rate = sample_rate
         self.batch_length = int(batch_length_T / sample_rate)
         # batch idx will return a subset of a trajectory of length batch_length
-        self.dynsys = load_dyn_sys_class(dyn_sys_name)(obs_noise_std=obs_noise_std, **ode_params)
+        self.dynsys = load_dyn_sys_class(dyn_sys_name)(obs_noise_std=obs_noise_std, obs_inds=obs_inds, **ode_params)
         self.Normalizer = load_normalizer_class(normalizer)
         self.generate_data()
 
@@ -197,6 +221,7 @@ class DynamicsDataModule(pl.LightningDataModule):
             train_sample_rate=0.01,
             test_sample_rates=[0.01],
             obs_noise_std=1,
+            obs_inds=[0],
             ode_params={},
             dyn_sys_name='Lorenz63',
             normalizer='unit_gaussian',
@@ -210,6 +235,7 @@ class DynamicsDataModule(pl.LightningDataModule):
         self.train_sample_rate = train_sample_rate
         self.test_sample_rates = test_sample_rates
         self.ode_params = ode_params
+        self.obs_inds = obs_inds
         self.obs_noise_std = obs_noise_std
         self.dyn_sys_name = dyn_sys_name
         self.shuffle = shuffle
@@ -222,6 +248,7 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         sample_rate=self.train_sample_rate,
                                         ode_params=self.ode_params,
                                         obs_noise_std=self.obs_noise_std,
+                                        obs_inds=self.obs_inds,
                                         batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
                                         normalizer=self.normalizer)
@@ -231,6 +258,7 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         sample_rate=self.train_sample_rate,
                                         ode_params=self.ode_params,
                                         obs_noise_std=self.obs_noise_std,
+                                        obs_inds=self.obs_inds,
                                         batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
                                         normalizer=self.normalizer)
@@ -243,6 +271,7 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         sample_rate=dt,
                                         ode_params=self.ode_params,
                                         obs_noise_std=self.obs_noise_std,
+                                        obs_inds=self.obs_inds,
                                         batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
                                         normalizer=self.normalizer)

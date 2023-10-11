@@ -49,7 +49,7 @@ exp_dict = {
     'max_epochs': [100],
     'monitor_metric': ['loss/val/mse'],
     # model settings
-    'dim_obs': [1],
+    'obs_inds': [[0]],
     'dim_state': [3],
     'use_physics': [False],
     'use_nn': [True],

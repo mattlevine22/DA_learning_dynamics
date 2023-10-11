@@ -39,7 +39,7 @@ class Runner:
             lr_scheduler_params={'patience': 2, 'factor': 0.1},
             tune_initial_lr=False,
             dim_state=3,
-            dim_obs=1,
+            obs_inds=[0],
             use_physics=False,
             use_nn=True,
             learn_h=False,
@@ -87,13 +87,14 @@ class Runner:
                                  'normalizer': normalizer,
                                  'obs_noise_std': obs_noise_std, # this is the standard deviation of the observation noise
                                  'ode_params': ode_params,
+                                 'obs_inds': obs_inds,
                                  }
 
         self.model_hyperparams = {
                                   'monitor_metric': monitor_metric,
                                   'lr_scheduler_params': lr_scheduler_params,
                                   'dim_state': dim_state,
-                                  'dim_obs': dim_obs,
+                                  'dim_obs': len(obs_inds),
                                   'use_physics': use_physics,
                                   'use_nn': use_nn,
                                   'learn_h': learn_h,

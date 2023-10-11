@@ -8,11 +8,12 @@ import argparse
 
 # use argparse to get command line argument for which experiment to run
 parser = argparse.ArgumentParser()
-parser.add_argument('--project_name', type=str, default='mlda_l63_partialNoisyObs')
-parser.add_argument('--id', type=int, default=0)
+parser.add_argument('--project_name', type=str, default='mlda_g12_partialCleanObs')
 parser.add_argument('--fast_dev_run', type=bool, default=False)
 parser.add_argument('--accelerator', type=str, default='auto')
 parser.add_argument('--devices', type=str, default='auto')
+parser.add_argument('--run_all', type=bool, default=True)
+parser.add_argument('--run_id', type=int, default=0)
 args = parser.parse_args()
 
 # build a dict of experimental conditions
@@ -25,21 +26,21 @@ exp_dict = {
     'n_trajectories_train': [10], # smaller dataset for debugging
     'n_trajectories_val': [2],
     'n_trajectories_test': [2],
-    'T': [100],
-    'T_long': [100], #[1000],
-    'train_sample_rate': [0.01],
-    'test_sample_rates': [[0.01]],
-    'batch_size': [8],
-    'batch_length_T': [2],
-    'burnin_frac': [0.75],
-    'dyn_sys_name': ['Lorenz63'],
+    'T': [1000],
+    'T_long': [1000], #[1000],
+    'train_sample_rate': [1e-1],
+    'test_sample_rates': [[1e-1]],
+    'batch_size': [2**12],
+    'batch_length_T': [500], # length of a batch in model time units (e.g., for sample rate 1e-2, this is 200 samples)
+    'burnin_frac': [0.75], # fraction of batch used for burn in (loss not computed on predictions made in this portion)
+    'dyn_sys_name': ['G12'],
     'shuffle': ['once'], # options are 'once', 'every_epoch', None
-    'normalizer': ['unit_gaussian'], # options are 'inactive', 'unit_gaussian', 'min_max'
-    'obs_noise_std': [1],
+    'normalizer': ['inactive'], # options are 'inactive', 'unit_gaussian', 'min_max'
+    'obs_noise_std': [0.1],
     # optimizer settings
-    'limit_train_batches': [0.002],
-    'limit_val_batches': [0.005],
-    'limit_test_batches': [0.005],
+    'limit_train_batches': [1.0],
+    'limit_val_batches': [1.0],
+    'limit_test_batches': [1.0],
     'learning_rate': [1e-2],
     'dropout': [0],
     'lr_scheduler_params': [
@@ -50,18 +51,19 @@ exp_dict = {
     # model settings
     'obs_inds': [[0]],
     'dim_state': [3],
-    'use_physics': [False],
-    'use_nn': [True],
+    'use_physics': [True],
+    'use_nn': [False],
     'learn_h': [False],
-    'learn_K': [True],
+    'learn_K': [False],
     'init_K': ['hT'], # options are 'random', 'hT'
     'num_hidden_layers': [1],
     'layer_width': [50],
     'activations': ['gelu'],
     # ODE settings
+    'odeint_use_adjoint': [False],
     'odeint_method': ['dopri5'],
-    'odeint_rtol': [1e-5],
-    'odeint_atol': [1e-5],
+    'odeint_rtol': [1e-3],
+    'odeint_atol': [1e-3],
     'odeint_options': [{'dtype': torch.float32}],
 }
 
@@ -71,7 +73,14 @@ exp_list = dict_combiner(exp_dict)
 print('Number of experiments to sweep: ', len(exp_list))
 
 # run the experiment
-Runner(**exp_list[args.id])
+if args.run_all:
+    id_list = list(range(len(exp_list)))
+else:
+    id_list = [args.run_id]
+
+for i in id_list:
+    print('Running experiment ', i)
+    Runner(**exp_list[i])
 
 
 
