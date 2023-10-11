@@ -28,10 +28,10 @@ exp_dict = {
     'n_trajectories_test': [2],
     'T': [1000],
     'T_long': [1000], #[1000],
-    'train_sample_rate': [1e-1],
-    'test_sample_rates': [[1e-1]],
+    'train_sample_rate': [1e-2],
+    'test_sample_rates': [[1e-2]],
     'batch_size': [2**12],
-    'batch_length_T': [500], # length of a batch in model time units (e.g., for sample rate 1e-2, this is 200 samples)
+    'batch_length_T': [40], # length of a batch in model time units (e.g., for sample rate 1e-2, this is 200 samples)
     'burnin_frac': [0.75], # fraction of batch used for burn in (loss not computed on predictions made in this portion)
     'dyn_sys_name': ['G12'],
     'shuffle': ['once'], # options are 'once', 'every_epoch', None
