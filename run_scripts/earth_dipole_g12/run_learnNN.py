@@ -26,17 +26,17 @@ exp_dict = {
     'n_trajectories_train': [10], # smaller dataset for debugging
     'n_trajectories_val': [2],
     'n_trajectories_test': [2],
-    'T': [1000],
-    'T_long': [1000], #[1000],
-    'train_sample_rate': [1e-1],
-    'test_sample_rates': [[1e-1]],
-    'batch_size': [2**9],
-    'batch_length_T': [500], # length of a batch in model time units (e.g., for sample rate 1e-2, this is 200 samples)
+    'T': [100],
+    'T_long': [100], #[1000],
+    'train_sample_rate': [1e-2],
+    'test_sample_rates': [[1e-2]],
+    'batch_size': [2**10],
+    'batch_length_T': [20, 40], # length of a batch in model time units (e.g., for sample rate 1e-2, this is 200 samples)
     'burnin_frac': [0.75], # fraction of batch used for burn in (loss not computed on predictions made in this portion)
     'dyn_sys_name': ['G12'],
     'shuffle': ['once'], # options are 'once', 'every_epoch', None
-    'normalizer': ['inactive'], # options are 'inactive', 'unit_gaussian', 'min_max'
-    'obs_noise_std': [0.1],
+    'normalizer': ['unit_gaussian'], # options are 'inactive', 'unit_gaussian', 'min_max'
+    'obs_noise_std': [0],
     # optimizer settings
     'limit_train_batches': [1.0],
     'limit_val_batches': [1.0],
@@ -60,7 +60,7 @@ exp_dict = {
     'layer_width': [50],
     'activations': ['gelu'],
     # ODE settings
-    'odeint_use_adjoint': [False],
+    'odeint_use_adjoint': [False, True],
     'odeint_method': ['dopri5'],
     'odeint_rtol': [1e-3],
     'odeint_atol': [1e-3],
