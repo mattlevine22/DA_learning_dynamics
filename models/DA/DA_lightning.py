@@ -34,7 +34,7 @@ class DataAssimilatorModule(pl.LightningModule):
                  learn_K=False,
                  init_K='hT',
                  layer_width=50,
-                 n_burnin=200,
+                 burnin_frac=0.75,
                  learning_rate=0.01, 
                  activation='gelu',
                  monitor_metric='train_loss',
@@ -48,7 +48,7 @@ class DataAssimilatorModule(pl.LightningModule):
 
         self.dim_obs = dim_obs
         self.dim_state = dim_state
-        self.n_burnin = n_burnin # number of burn-in steps to ignore when computing loss
+        self.burnin_frac = burnin_frac # number of burn-in steps to ignore when computing loss
 
         self.first_forward = True # for plotting model-related things once at beginnning of training
         self.learning_rate = learning_rate
@@ -100,9 +100,13 @@ class DataAssimilatorModule(pl.LightningModule):
         return y_pred, y_assim, x_pred, x_assim
 
     def loss(self, y_pred, y_obs):
+
+        # calculate burnin
+        n_burnin = int(self.burnin_frac * y_pred.shape[1])
+
         # compute the loss
-        loss_l2 = F.mse_loss(y_pred[:, self.n_burnin:], y_obs[:, self.n_burnin:])
-        loss_sup = torch.max(torch.abs(y_pred[:, self.n_burnin:] - y_obs[:, self.n_burnin:]))
+        loss_l2 = F.mse_loss(y_pred[:, n_burnin:], y_obs[:, n_burnin:])
+        loss_sup = torch.max(torch.abs(y_pred[:, n_burnin:] - y_obs[:, n_burnin:]))
         return loss_l2, loss_sup
 
     def training_step(self, batch, batch_idx):
