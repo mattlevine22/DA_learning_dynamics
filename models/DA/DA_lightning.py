@@ -110,7 +110,7 @@ class DataAssimilatorModule(pl.LightningModule):
         return loss_l2, loss_sup
 
     def training_step(self, batch, batch_idx):
-        y_obs, x_true, y_true, times = batch
+        y_obs, x_true, y_true, times, invariant_stats_true = batch
         y_pred, y_assim, x_pred, x_assim = self.forward(y_obs, times)
         loss_l2, loss_sup = self.loss(y_pred, y_obs)
         self.log("loss/train/mse", loss_l2, on_step=False,
@@ -161,7 +161,7 @@ class DataAssimilatorModule(pl.LightningModule):
                      on_step=False, on_epoch=True, prog_bar=False)
 
     def validation_step(self, batch, batch_idx):
-        y_obs, x_true, y_true, times = batch
+        y_obs, x_true, y_true, times, invariant_stats_true = batch
         y_pred, y_assim, x_pred, x_assim = self.forward(y_obs, times)
         # compute the losses
         loss_l2, loss_sup = self.loss(y_pred, y_obs)
@@ -177,10 +177,10 @@ class DataAssimilatorModule(pl.LightningModule):
             x_long = self.long_solve(device=y_obs.device, stage='val')
             y_long = self.model.h_obs(x_long).detach().cpu().numpy()
             
-            self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, tag='Val')
+            self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, invariant_stats_true=invariant_stats_true, tag='Val')
         return loss_l2
 
-    def make_batch_figs(self, y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=None, tag='', n_examples=2):
+    def make_batch_figs(self, y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=None, invariant_stats_true=None, tag='', n_examples=2):
         '''This function makes plots for a single batch of data.'''
         if n_examples > x_true.shape[0]:
             n_examples = x_true.shape[0]
@@ -275,10 +275,15 @@ class DataAssimilatorModule(pl.LightningModule):
                 if y_long is not None:
                     ax = axs[i, 2]
                     # use seaborn kdeplot
-                    sns.kdeplot(y_long[..., i].squeeze(), ax=ax, fill=True, color='blue')
+                    sns.kdeplot(y_long[..., i].squeeze(), ax=ax, fill=True, color='blue', label='Predicted')
                     ax.set_xlabel(f'Observation {i}')
                     ax.set_ylabel('Density')
                     ax.set_title(f'Invariant Distribution for Observation {i}')
+                    ax.legend()
+                if invariant_stats_true is not None:
+                    # the [0] takes the first batch (all batches are the same, though, for this piece of data)
+                    ax.plot(invariant_stats_true['kde_list'][i]['x_grid'][0].detach().cpu(), invariant_stats_true['kde_list'][i]['p_x'][0].detach().cpu(),  label='Reference', color='black')
+                    ax.legend()
 
             # plot the learned latent variables
             ax = axs[-2, 0]
@@ -321,7 +326,7 @@ class DataAssimilatorModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         dt = self.trainer.datamodule.test_sample_rates[dataloader_idx]
-        y_obs, x_true, y_true, times = batch
+        y_obs, x_true, y_true, times, invariant_stats_true = batch
 
         y_pred, y_assim, x_pred, x_assim = self.forward(y_obs, times)
 
@@ -339,7 +344,7 @@ class DataAssimilatorModule(pl.LightningModule):
             # run the model on the long trajectory
             x_long = self.long_solve(device=y_obs.device, stage='test')
             y_long = self.model.h_obs(x_long).detach().cpu().numpy()
-            self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, tag=f'Test/dt{dt}')
+            self.make_batch_figs(y_obs, x_true, y_true, times, y_pred, x_pred, x_assim, y_assim, y_long=y_long, invariant_stats_true=invariant_stats_true, tag=f'Test/dt{dt}')
 
         return loss_l2
 

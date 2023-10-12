@@ -4,7 +4,7 @@ from torchdiffeq import odeint
 import pytorch_lightning as pl
 from sklearn.utils import shuffle as skshuffle
 import random
-from utils import InactiveNormalizer, UnitGaussianNormalizer, MaxMinNormalizer
+from utils import InactiveNormalizer, UnitGaussianNormalizer, MaxMinNormalizer, discretized_univariate_kde
 
 from pdb import set_trace as bp
 
@@ -141,12 +141,14 @@ class DynamicsDataset(Dataset):
                  ode_params={},
                  dyn_sys_name='Lorenz63',
                  normalizer='unit_gaussian',
+                 invariant_stats_true=None,
                  **kwargs):
         '''use ode_params to pass in parameters for the dynamical system'''
         self.N_traj = N_traj
         self.T = T
         self.sample_rate = sample_rate
         self.batch_length = int(batch_length_T / sample_rate)
+        self.invariant_stats_true = invariant_stats_true
         # batch idx will return a subset of a trajectory of length batch_length
         self.dynsys = load_dyn_sys_class(dyn_sys_name)(obs_noise_std=obs_noise_std, obs_inds=obs_inds, **ode_params)
         self.Normalizer = load_normalizer_class(normalizer)
@@ -179,6 +181,25 @@ class DynamicsDataset(Dataset):
         self.y_obs = self.y_obs_normalizer.encode(self.y_obs)
         self.y_true = self.y_obs_normalizer.encode(self.y_true)
 
+        # compute a kernel density estimate of the invariant distribution for each component of y_true
+        if self.invariant_stats_true is None:
+            kde_list = []
+            for i in range(self.y_true.shape[-1]):
+                data_i = self.y_true[:, :, i].reshape(-1).data.numpy()
+                x_i, kde_i = discretized_univariate_kde(data_i, n_eval_bins=100)
+                kde_list.append({'x_grid': x_i, 'p_x': kde_i})
+
+            # compute invariant stats from y_true
+            mean = torch.mean(self.y_true, dim=(0, 1))
+            std = torch.std(self.y_true, dim=(0, 1))
+            self.invariant_stats_true = {
+                'kde_list': kde_list,
+                'mean': mean,
+                'std': std,
+                'skewness': torch.mean((self.y_true - mean) ** 3, dim=(0, 1)) / std ** 3,
+                'kurtosis': torch.mean((self.y_true - mean) ** 4, dim=(0, 1)) / std ** 4,
+            }
+
     def __len__(self):
         # the number of batches is equal to the number of trajectories * the number of subsets (of length batch_length) of each trajectory
         return self.N_traj * self.n_batches_per_traj
@@ -208,7 +229,7 @@ class DynamicsDataset(Dataset):
         # times
         times_batch = self.times[start_idx:start_idx+self.batch_length]
 
-        return y_obs_batch, x_true_batch, y_true_batch, times_batch
+        return y_obs_batch, x_true_batch, y_true_batch, times_batch, self.invariant_stats_true
 
 
 class DynamicsDataModule(pl.LightningDataModule):
@@ -261,7 +282,9 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         obs_inds=self.obs_inds,
                                         batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
-                                        normalizer=self.normalizer)
+                                        normalizer=self.normalizer,
+                                        invariant_stats_true=self.train.invariant_stats_true)
+
 
         # build a dictionary of test datasets with different sample rates
         self.test = {}
@@ -274,7 +297,8 @@ class DynamicsDataModule(pl.LightningDataModule):
                                         obs_inds=self.obs_inds,
                                         batch_length_T=self.batch_length_T,
                                         dyn_sys_name=self.dyn_sys_name,
-                                        normalizer=self.normalizer)
+                                        normalizer=self.normalizer,
+                                        invariant_stats_true=self.train.invariant_stats_true)
 
     def get_dataloader(self, data):
         if self.shuffle == 'once':

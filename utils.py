@@ -1,7 +1,15 @@
 import numpy as np
+from scipy.stats import gaussian_kde
 import itertools
 import torch.nn as nn
 from torchdiffeq import odeint, odeint_adjoint
+
+def discretized_univariate_kde(x, n_eval_bins=100):
+    '''Returns a discretized univariate kernel density estimate of the data.'''
+    kde = gaussian_kde(x)
+    x_eval = np.linspace(np.min(x), np.max(x), n_eval_bins)
+    return x_eval, kde(x_eval)
+
 
 def odeint_wrapper(func, y0, t, use_adjoint=False, rtol=1e-7, atol=1e-9, method=None, options=None, event_fn=None):
     '''Wrapper for odeint and odeint_adjoint to allow for easy switching between the two.

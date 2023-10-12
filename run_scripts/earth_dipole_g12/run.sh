@@ -1,1 +1,1 @@
-nohup python -u run.py --devices 2  > output.log &
+nohup python -u run_learnNN.py --devices 2  > output.log &
