@@ -34,7 +34,7 @@ exp_dict = {
     'burnin_frac': [0.75],
     'dyn_sys_name': ['Lorenz63'],
     'shuffle': ['once'], # options are 'once', 'every_epoch', None
-    'normalizer': ['unit_gaussian'], # options are 'inactive', 'unit_gaussian', 'min_max'
+    'normalizer': ['inactive'], # options are 'inactive', 'unit_gaussian', 'min_max'
     'obs_noise_std': [1],
     # optimizer settings
     'limit_train_batches': [0.002],
@@ -50,8 +50,8 @@ exp_dict = {
     # model settings
     'obs_inds': [[0]],
     'dim_state': [3],
-    'use_physics': [False],
-    'use_nn': [True],
+    'use_physics': [True],
+    'use_nn': [False],
     'learn_h': [False],
     'learn_K': [True],
     'init_K': ['hT'], # options are 'random', 'hT'
