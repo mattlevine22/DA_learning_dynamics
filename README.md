@@ -32,6 +32,29 @@ Note: when I run locally on a laptop, I set `accelerator='cpu'`:
 Also: when I debug or want to make sure things are installed correctly and run, I use `fast_dev_run=True`:
 - `python run_learnNN.py --fast_dev_run True`
 
+## Next steps
+Note: If any of these interest you, please reach out to me and we can work together! I am very much looking for collaborators to help tackle these challenging questions.
+
+0. Test in new challenging settings
+   - Systems with real data!
+   - Relevant toy models that capture key challenges in working with real data
+1. Implement other auto-differentiable data assimilation schemes
+   1. EnKF: paper by [Chen, Sanz-Alonso, and Willet 2022](https://arxiv.org/abs/2107.07687)) and [code](https://github.com/ymchen0/torchEnKF#auto-differentiable-ensemble-kalman-filters-ad-enkf)
+   2. Continuous DA: the key idea is to first interpolate the observations, then solve an ODE/SDE that is forced by differences between the differentiated interpolant and observables of the solution.
+      - Continuous-time 3DVAR: see eq. 14 in [(Blömker, Law, Stuart, and Zygalakis)](https://arxiv.org/abs/1210.1594)
+      - Continuous-time EnKF [(Calvello, Reich and Stuart 2022)](https://arxiv.org/abs/2209.11371)
+2. Learning Stochastic Differential Equations
+   - An idea for this is to learn parameters for the stochastic forcing, and sample multiple i.i.d. solution paths at each mini-batch of SGD
+   - Can we learn to correctly distinguish the amount/structure of noise present in the dynamics vs in the observation?
+3. Learning more interpretable models
+   - Test sparse dictionary learning by simply enumerating a library and penalizing coefficients with L1.
+   - Try to encourage low-rank structure in hidden dynamics so that only the minimal number of hidden states is active (i.e., for L63, I want to hypothesize 10 hidden dimensions, and automatically nullify 7 of them).
+4. Identifying efficient architectures
+   - e.g., does putting a scale factor in front of each right-hand-side improve learning (NN's like their outputs to be around [-1,1])?
+   - Can we use this to improve hybrid modeling settings where the RHS is actually rather large (e.g. 100)?
+5. Improving objective functions
+   - How can we leverage non-temporal physical knowledge/data (e.g., invariant statistics) to further improve our learning?
+   - Can we penalize difference between moments of the predicted vs known invariant distribution? Can this be autodifferentiated efficiently?
 
 ## Setting up server and virtual environment
 1. Set default shell to bash (substitute your username...or don't do this if you don't need to)
