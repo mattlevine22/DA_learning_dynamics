@@ -99,10 +99,10 @@ class DataAssimilator(nn.Module):
 
         # create scale parameters in SDTDEV units to hopefully make learning easier
         self.Gamma_scale = nn.Parameter(
-            torch.tensor(1.0)
+            torch.tensor(0.1)
         )  # this is the scale of the observation noise STDEV
         self.C_scale = nn.Parameter(
-            torch.tensor(1.0)
+            torch.tensor(0.1)
         )  # this is the scale of the state noise STDEV
 
         self.compute_K()
