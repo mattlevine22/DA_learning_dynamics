@@ -56,8 +56,10 @@ class DataAssimilator(nn.Module):
         self.h_obs.bias.data = torch.zeros(dim_obs)
 
         self.Gamma_cov = nn.Linear(dim_obs, dim_obs, bias=False)
-        self.Gamma_cov.weight.data = torch.zeros(dim_obs) + 0.01*torch.randn(dim_obs, dim_obs)
-        #torch.abs(self.Gamma_cov.weight.data)
+        self.Gamma_cov.weight.data = torch.zeros(dim_obs) + 0.01 * torch.randn(
+            dim_obs, dim_obs
+        )
+        # torch.abs(self.Gamma_cov.weight.data)
         parametrize.register_parametrization(self.Gamma_cov, "weight", Symmetric())
         parametrize.register_parametrization(
             self.Gamma_cov, "weight", MatrixExponential()
@@ -66,8 +68,9 @@ class DataAssimilator(nn.Module):
 
         # initialize the state noise covariance to be 0.1*identity
         self.C_cov = nn.Linear(dim_state, dim_state, bias=False)
-        # self.C_cov.weight.data = torch.abs(self.C_cov.weight.data)
-        self.Gamma_cov.weight.data = torch.zeros(dim_state) + 0.01*torch.randn(dim_state, dim_state)
+        self.C_cov.weight.data = torch.zeros(dim_state) + 0.01 * torch.randn(
+            dim_state, dim_state
+        )
         parametrize.register_parametrization(self.C_cov, "weight", Symmetric())
         parametrize.register_parametrization(self.C_cov, "weight", MatrixExponential())
         print("Initial C_cov: ", self.C_cov.weight.data)
