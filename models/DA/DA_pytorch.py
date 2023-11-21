@@ -54,25 +54,47 @@ class DataAssimilator(nn.Module):
         # set to identity of shape (dim_obs, dim_state)
         self.h_obs.weight.data = torch.eye(dim_obs, dim_state)
         self.h_obs.bias.data = torch.zeros(dim_obs)
+        if not learn_h:
+            print("Not learning h")
+            # freeze the observation map
+            for param in self.h_obs.parameters():
+                param.requires_grad = False
+
 
         self.Gamma_cov = nn.Linear(dim_obs, dim_obs, bias=False)
-        self.Gamma_cov.weight.data = torch.zeros(dim_obs) + 0.01 * torch.randn(
-            dim_obs, dim_obs
-        )
-        # torch.abs(self.Gamma_cov.weight.data)
-        parametrize.register_parametrization(self.Gamma_cov, "weight", Symmetric())
-        parametrize.register_parametrization(
-            self.Gamma_cov, "weight", MatrixExponential()
-        )
+        if learn_ObsCov:
+            self.Gamma_cov.weight.data = torch.zeros(dim_obs) + 0.01 * torch.randn(
+                dim_obs, dim_obs
+            )
+            # torch.abs(self.Gamma_cov.weight.data)
+            parametrize.register_parametrization(self.Gamma_cov, "weight", Symmetric())
+            parametrize.register_parametrization(
+                self.Gamma_cov, "weight", MatrixExponential()
+            )
+        else:
+            print("Not learning Gamma")
+            self.Gamma_cov.weight.data = torch.eye(dim_obs, dim_obs)
+            # freeze the observation noise covariance
+            for param in self.Gamma_cov.parameters():
+                param.requires_grad = False
+
         print("Initial Gamma_cov: ", self.Gamma_cov.weight.data)
 
         # initialize the state noise covariance to be 0.1*identity
         self.C_cov = nn.Linear(dim_state, dim_state, bias=False)
-        self.C_cov.weight.data = torch.zeros(dim_state) + 0.01 * torch.randn(
-            dim_state, dim_state
-        )
-        parametrize.register_parametrization(self.C_cov, "weight", Symmetric())
-        parametrize.register_parametrization(self.C_cov, "weight", MatrixExponential())
+        if learn_StateCov:
+            self.C_cov.weight.data = torch.zeros(dim_state) + 0.01 * torch.randn(
+                dim_state, dim_state
+            )
+            parametrize.register_parametrization(self.C_cov, "weight", Symmetric())
+            parametrize.register_parametrization(self.C_cov, "weight", MatrixExponential())
+        else:
+            print("Not learning C")
+            self.C_cov.weight.data = torch.eye(dim_state, dim_state)
+            # freeze the state noise covariance
+            for param in self.C_cov.parameters():
+                param.requires_grad = False
+
         print("Initial C_cov: ", self.C_cov.weight.data)
 
         # create scale parameters in SDTDEV units to hopefully make learning easier
@@ -85,25 +107,6 @@ class DataAssimilator(nn.Module):
 
         self.compute_K()
         print("Initial K: ", self.K)
-
-        # freeze necessary parameters if not learning them
-        if not learn_h:
-            print("Not learning h")
-            # freeze the observation map
-            for param in self.h_obs.parameters():
-                param.requires_grad = False
-
-        if not learn_ObsCov:
-            print("Not learning Gamma")
-            # freeze the observation noise covariance
-            for param in self.Gamma_cov.parameters():
-                param.requires_grad = False
-
-        if not learn_StateCov:
-            print("Not learning C")
-            # freeze the state noise covariance
-            for param in self.C_cov.parameters():
-                param.requires_grad = False
 
         # set an initial condition for the state and register it as a buffer
         # note that this is better than self.x0 = x0 because pytorch-lightning will manage the device
