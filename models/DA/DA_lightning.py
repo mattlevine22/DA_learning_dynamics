@@ -36,6 +36,7 @@ class DataAssimilatorModule(pl.LightningModule):
         learn_h=False,
         learn_ObsCov=False,
         learn_StateCov=False,
+        da_name="3dvar",
         layer_width=50,
         burnin_frac=0.75,
         learning_rate=0.01,
@@ -98,6 +99,7 @@ class DataAssimilatorModule(pl.LightningModule):
             learn_h=learn_h,
             learn_ObsCov=learn_ObsCov,
             learn_StateCov=learn_StateCov,
+            da_name=da_name,
         )
 
     def long_solve(self, device="cpu", stage="val"):
@@ -113,23 +115,33 @@ class DataAssimilatorModule(pl.LightningModule):
     def forward(self, y_obs, times):
         # since times currently have the same SPACING across all batches, we can reduce this to just the first batch
         times = times[0].squeeze()
-        y_pred, y_assim, x_pred, x_assim, cov = self.model(y_obs=y_obs, times=times)
-        return y_pred, y_assim, x_pred, x_assim, cov
+        y_pred, y_assim, x_pred, x_assim, cov, inv_cov = self.model(
+            y_obs=y_obs, times=times
+        )
+        return y_pred, y_assim, x_pred, x_assim, cov, inv_cov
 
-    def loss(self, y_pred, y_obs, cov):
+    def loss(self, y_pred, y_obs, cov, inv_cov):
         # calculate burnin
         n_burnin = int(self.burnin_frac * y_pred.shape[1])
 
+        y_pred = y_pred[:, n_burnin:]
+        y_obs = y_obs[:, n_burnin:]
+        cov = cov[:, n_burnin:] # this may break 3dvar until we fix the covariance dimensions
+        inv_cov = inv_cov[:, n_burnin:] # this may break 3dvar until we fix the covariance dimensions
+
         # compute the loss
-        loss_l2 = F.mse_loss(y_pred[:, n_burnin:], y_obs[:, n_burnin:])
-        loss_sup = torch.max(torch.abs(y_pred[:, n_burnin:] - y_obs[:, n_burnin:]))
+        loss_l2 = F.mse_loss(y_pred, y_obs)
+        loss_sup = torch.max(torch.abs(y_pred - y_obs))
 
         loss_weighted_mse = weighted_mse_loss(
-            y_pred[:, n_burnin:], y_obs[:, n_burnin:], cov
+            y_pred, y_obs, inv_cov
         )
         loss_logdet = log_det(cov)
         loss_nll = neg_log_likelihood_loss(
-            y_pred[:, n_burnin:], y_obs[:, n_burnin:], cov
+            y_pred,
+            y_obs,
+            cov,
+            inv_cov,
         )
         loss_dict = {
             "mse": loss_l2,
@@ -142,8 +154,8 @@ class DataAssimilatorModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         y_obs, x_true, y_true, times, invariant_stats_true = batch
-        y_pred, y_assim, x_pred, x_assim, cov = self.forward(y_obs, times)
-        loss_dict = self.loss(y_pred, y_obs, cov)
+        y_pred, y_assim, x_pred, x_assim, cov, inv_cov = self.forward(y_obs, times)
+        loss_dict = self.loss(y_pred, y_obs, cov, inv_cov)
         for key, val in loss_dict.items():
             self.log(
                 f"loss/train/{key}", val, on_step=False, on_epoch=True, prog_bar=True
@@ -175,6 +187,8 @@ class DataAssimilatorModule(pl.LightningModule):
 
         wandb.log({"parameters/C_scale": self.model.C_scale.detach()})
         wandb.log({"parameters/Gamma_scale": self.model.Gamma_scale.detach()})
+        wandb.log({"parameters/initial_state_mean": self.model.prior_mean.detach()})
+        self.log_matrix(self.model.prior_cov.weight.detach(), tag="initial_state_cov")
         self.log_matrix(self.model.Gamma_cov.weight.detach(), tag="Gamma_cov")
         self.log_matrix(self.model.C_cov.weight.detach(), tag="C_cov")
         self.log_matrix(self.model.K.detach(), tag="K")
@@ -217,9 +231,9 @@ class DataAssimilatorModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         y_obs, x_true, y_true, times, invariant_stats_true = batch
-        y_pred, y_assim, x_pred, x_assim, cov = self.forward(y_obs, times)
+        y_pred, y_assim, x_pred, x_assim, cov, inv_cov = self.forward(y_obs, times)
         # compute the losses
-        loss_dict = self.loss(y_pred, y_obs, cov)
+        loss_dict = self.loss(y_pred, y_obs, cov, inv_cov)
         for key, val in loss_dict.items():
             self.log(
                 f"loss/val/{key}", val, on_step=False, on_epoch=True, prog_bar=True
@@ -484,10 +498,10 @@ class DataAssimilatorModule(pl.LightningModule):
         dt = self.trainer.datamodule.test_sample_rates[dataloader_idx]
         y_obs, x_true, y_true, times, invariant_stats_true = batch
 
-        y_pred, y_assim, x_pred, x_assim, cov = self.forward(y_obs, times)
+        y_pred, y_assim, x_pred, x_assim, cov, inv_cov = self.forward(y_obs, times)
 
         # compute the losses
-        loss_dict = self.loss(y_pred, y_obs, cov)
+        loss_dict = self.loss(y_pred, y_obs, cov, inv_cov)
         for key, val in loss_dict.items():
             self.log(
                 f"loss/test/{key}/dt{dt}",

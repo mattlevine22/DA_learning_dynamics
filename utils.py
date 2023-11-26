@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torchdiffeq import odeint, odeint_adjoint
 
+
 class Symmetric(nn.Module):
     def forward(self, X):
         return X.triu() + X.triu(1).transpose(-1, -2)
@@ -15,17 +16,41 @@ class MatrixExponential(nn.Module):
         return torch.matrix_exp(X)
 
 
+def batch_covariance(ensemble):
+    # ensemble shape: (N_batch, N_ensemble, dim_state)
+    N_batch, N_ensemble, dim_state = ensemble.shape
+
+    # Compute mean for each batch
+    mean = torch.mean(ensemble, dim=1, keepdim=True)
+
+    # Compute deviations from the mean
+    deviations = ensemble - mean
+
+    # Calculate covariance matrix for each batch
+    covariance_matrices = torch.matmul(deviations.transpose(-2, -1), deviations) / (
+        N_ensemble - 1
+    )
+
+    return covariance_matrices
+
+
 # define a weighted mean squared error loss where the weights are the inverse of a NxN covariance matrix
-def weighted_mse_loss(input, target, weight):
-    return torch.mean(weight * (input - target) ** 2)
+def weighted_mse_loss(input, target, inv_cov):
+    # weight is a K x N x N matrix, where K is length of input/target and N is the dimension of the system
+    # apply the kth weight to the kth input/target pair
+    # TODO: double check that this is righ!
+    return torch.mean(inv_cov * (input - target).permute(1, 0, 2) ** 2)
 
 
-def log_det(matrix):
-    return torch.log(torch.det(matrix))
+def log_det(cov):
+    # cov is a K x N x N matrix, where K is length of input/target and N is the dimension of the system
+    # record the sum of the log determinants of the covariance matrices
+    # TODO: double check that this is righ!
+    return torch.mean(torch.log(torch.det(cov)))
 
 
-def neg_log_likelihood_loss(input, target, cov):
-    return weighted_mse_loss(input, target, torch.inverse(cov)) + log_det(cov)
+def neg_log_likelihood_loss(input, target, cov, inv_cov):
+    return weighted_mse_loss(input, target, inv_cov) + log_det(cov)
 
 
 def discretized_univariate_kde(x, n_eval_bins=100):
@@ -48,6 +73,7 @@ def odeint_wrapper(
 ):
     """Wrapper for odeint and odeint_adjoint to allow for easy switching between the two.
     Uses default values for rtol, atol, method, and options if not specified."""
+
     if use_adjoint:
         return odeint_adjoint(
             func,
