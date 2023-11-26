@@ -48,6 +48,7 @@ class Runner:
         learn_ObsCov=False,
         learn_StateCov=False,
         da_name="3dvar",
+        N_ensemble=30,
         odeint_use_adjoint=False,
         odeint_method="dopri5",
         odeint_rtol=1e-7,
@@ -111,6 +112,7 @@ class Runner:
             "learn_ObsCov": learn_ObsCov,
             "learn_StateCov": learn_StateCov,
             "da_name": da_name,
+            "N_ensemble": N_ensemble,
             "layer_width": layer_width,
             "num_hidden_layers": num_hidden_layers,
             "burnin_frac": burnin_frac,
@@ -181,7 +183,10 @@ class Runner:
 
         # Create an early stopping callback
         early_stopping = EarlyStopping(
-            monitor=self.model_hyperparams['monitor_metric'], patience=20, mode="min", verbose=True
+            monitor=self.model_hyperparams["monitor_metric"],
+            patience=20,
+            mode="min",
+            verbose=True,
         )
 
         # aggregate all callbacks
@@ -196,7 +201,7 @@ class Runner:
             # can monitor this issue here (was reported Sep 2023)...hopefully updating pytorch will eventually solve this problem:
             # https://github.com/pytorch/pytorch/issues/77764
             # other settings
-            **self.trainer_hyperparams
+            **self.trainer_hyperparams,
         )
 
         # Tune the model
